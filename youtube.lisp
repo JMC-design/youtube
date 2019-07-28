@@ -32,14 +32,21 @@ start playback from there."
   (let ((url (or (youtube-url-p url-or-song)
                  (url-from-string url-or-song))))
     (set-playing-url url)
-    (run-program
-     (concatenate 'string
-                  "mpv --ytdl-format=best --input-ipc-server="
-                  *socket* " "
-                  (unless video
-                    "--vid=no ")
-                  url
-                  "\\&feature=youtu.be\\&t=" pos)))
+    (handler-case
+        (run-program
+         (concatenate 'string
+                      "mpv --ytdl-format=best --input-ipc-server="
+                      *socket* " "
+                      (unless video
+                        "--vid=no ")
+                      url
+                      "\\&feature=youtu.be\\&t=" pos))
+      (uiop/run-program:subprocess-error (e)
+        (declare (ignore e))
+        ;; Even though the youtube url is valid, some videos are not available;
+        ;; mpv just crashes in this case; ignore it and move along
+        (set-playing-url nil)
+        nil)))
   ;; After mpv finishes and closes, run-program returns and nothing is playing.
   (clear-playing-url))
 
@@ -115,7 +122,7 @@ playing."
     ;url might happen after playing the video which would result in a state
     ;where there is no playing url but mpv is running.
     (sleep 1)                           
-    (bt:make-thread
+    (make-thread
      (lambda ()
        (play url :video t :pos pos)))))
 
